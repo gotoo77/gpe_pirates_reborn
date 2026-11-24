@@ -1,8 +1,10 @@
 //! Deterministic P1 rules. Positions and camera origins use 1/1024 world units.
 pub const SCALE: i64 = 1024;
-pub const WIDTH: u32 = 640;
-pub const HEIGHT: u32 = 360;
-pub const SEA_HEIGHT: u32 = 312;
+pub const WIDTH: u32 = 960;
+pub const HEIGHT: u32 = 540;
+pub const HUD_HEIGHT: u32 = 88;
+pub const SEA_HEIGHT: u32 = HEIGHT - HUD_HEIGHT;
+pub const SHIP_MARGIN: i64 = 18;
 pub const WORLD: [i64; 2] = [1600, 1000];
 pub const HEADINGS: [[i64; 2]; 16] = [
     [1024, 0],
@@ -31,23 +33,112 @@ pub const HEADING_NAMES: [&str; 16] = [
 pub struct Island {
     pub name: &'static str,
     pub rect: [i64; 4],
+    /// Fixed convex lobes, clockwise in screen coordinates. Their union is land.
+    pub parts: &'static [&'static [[i64; 2]]],
 }
 pub const ISLANDS: [Island; 4] = [
     Island {
         name: "ILE DE LA BRISE",
         rect: [96, 160, 192, 240],
+        parts: &[
+            &[
+                [144, 160],
+                [212, 168],
+                [264, 212],
+                [288, 264],
+                [264, 300],
+                [176, 312],
+                [112, 284],
+                [96, 224],
+            ],
+            &[
+                [112, 256],
+                [184, 284],
+                [232, 312],
+                [272, 344],
+                [248, 384],
+                [176, 400],
+                [120, 368],
+                [96, 312],
+            ],
+        ],
     },
     Island {
         name: "ILE DU PHARE",
         rect: [1120, 160, 224, 256],
+        parts: &[
+            &[
+                [1192, 160],
+                [1272, 176],
+                [1328, 224],
+                [1344, 280],
+                [1304, 304],
+                [1200, 296],
+                [1120, 272],
+                [1144, 208],
+            ],
+            &[
+                [1152, 248],
+                [1256, 264],
+                [1320, 328],
+                [1312, 384],
+                [1240, 416],
+                [1168, 392],
+                [1120, 336],
+                [1120, 288],
+            ],
+        ],
     },
     Island {
         name: "ILE DE L'ANSE",
         rect: [608, 672, 256, 192],
+        parts: &[
+            &[
+                [688, 688],
+                [736, 672],
+                [800, 696],
+                [808, 744],
+                [768, 776],
+                [664, 784],
+                [608, 752],
+                [632, 712],
+            ],
+            &[
+                [680, 752],
+                [792, 732],
+                [848, 768],
+                [864, 808],
+                [816, 848],
+                [728, 864],
+                [648, 840],
+                [624, 800],
+            ],
+        ],
     },
     Island {
         name: "GRANDE DORSALE",
         rect: [672, 192, 256, 320],
+        parts: &[
+            &[
+                [672, 192],
+                [812, 192],
+                [884, 228],
+                [920, 300],
+                [880, 370],
+                [768, 388],
+                [672, 348],
+            ],
+            &[
+                [672, 300],
+                [800, 320],
+                [884, 398],
+                [928, 448],
+                [872, 496],
+                [800, 512],
+                [720, 472],
+                [672, 400],
+            ],
+        ],
     },
 ];
 #[derive(Clone, Copy, Debug)]
@@ -175,18 +266,84 @@ pub fn blocked_segment(from: [i64; 2], to: [i64; 2]) -> bool {
             }
         }
     }
-    ISLANDS
-        .iter()
-        .any(|island| intersects(from, to, island.rect))
+    ISLANDS.iter().any(|island| {
+        intersects(from, to, island.rect)
+            && island.parts.iter().any(|part| swept_lobe(from, to, part))
+    })
+}
+
+pub fn land_contains(point: [i64; 2]) -> bool {
+    ISLANDS.iter().any(|island| {
+        island.parts.iter().any(|part| {
+            part.iter().zip(part.iter().cycle().skip(1)).all(|(a, b)| {
+                (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0]) >= 0
+            })
+        })
+    })
+}
+
+// Clip the centre segment against a convex lobe expanded by the physical
+// square ±6. Polygon normals plus the square's X/Y normals (the slab broad
+// phase above) are the exact Minkowski sum; no float or point sampling.
+fn swept_lobe(from: [i64; 2], to: [i64; 2], part: &[[i64; 2]]) -> bool {
+    let mut enter = (0, 1);
+    let mut leave = (1, 1);
+    let greater = |a: (i64, i64), b: (i64, i64)| a.0 * b.1 > b.0 * a.1;
+    let min_x = part.iter().map(|p| p[0]).min().unwrap();
+    let max_x = part.iter().map(|p| p[0]).max().unwrap();
+    let min_y = part.iter().map(|p| p[1]).min().unwrap();
+    let max_y = part.iter().map(|p| p[1]).max().unwrap();
+    if !intersects(from, to, [min_x, min_y, max_x - min_x, max_y - min_y]) {
+        return false;
+    }
+    // Include the axis planes in the same time interval as the edge planes.
+    let edges = part.iter().zip(part.iter().cycle().skip(1)).map(|(a, b)| {
+        let n = [b[1] - a[1], a[0] - b[0]];
+        (n, n[0] * a[0] + n[1] * a[1])
+    });
+    for (n, c) in edges.chain([
+        ([-1, 0], -min_x),
+        ([1, 0], max_x),
+        ([0, -1], -min_y),
+        ([0, 1], max_y),
+    ]) {
+        let limit = (c + 6 * (n[0].abs() + n[1].abs())) * SCALE;
+        let start = n[0] * from[0] + n[1] * from[1];
+        let delta = n[0] * (to[0] - from[0]) + n[1] * (to[1] - from[1]);
+        if delta == 0 {
+            if start > limit {
+                return false;
+            }
+        } else if delta > 0 {
+            let end = (limit - start, delta);
+            if greater(leave, end) {
+                leave = end;
+            }
+        } else {
+            let begin = (start - limit, -delta);
+            if greater(begin, enter) {
+                enter = begin;
+            }
+        }
+        if greater(enter, leave) {
+            return false;
+        }
+    }
+    true
 }
 
 pub fn camera(position: [i64; 2]) -> [i64; 2] {
-    [
-        (position[0] - i64::from(WIDTH / 2) * SCALE)
-            .clamp(0, (WORLD[0] - i64::from(WIDTH)) * SCALE),
-        (position[1] - i64::from(SEA_HEIGHT / 2) * SCALE)
-            .clamp(0, (WORLD[1] - i64::from(SEA_HEIGHT)) * SCALE),
-    ]
+    camera_for(position, WIDTH, SEA_HEIGHT)
+}
+
+pub fn camera_for(position: [i64; 2], width: u32, sea_height: u32) -> [i64; 2] {
+    let view = [i64::from(width), i64::from(sea_height)];
+    std::array::from_fn(|axis| {
+        (position[axis] - view[axis] * SCALE / 2).clamp(
+            -SHIP_MARGIN * SCALE,
+            (WORLD[axis] - view[axis] + SHIP_MARGIN) * SCALE,
+        )
+    })
 }
 
 impl Simulation {

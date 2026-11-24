@@ -11,5 +11,5 @@ export async function boot(init, status) {
       throw error;
     }
   }
-  status.textContent = 'Fleches : barre / voiles · Echap : pause · R : recommencer';
+  status.textContent = 'Fleches : barre / voiles · M : carte (pause) · Echap : pause · R : recommencer';
 }

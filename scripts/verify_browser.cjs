@@ -24,7 +24,7 @@ function command(name, args) {
     args: process.env.SOFTWARE_WEBGPU === '1' ? ['--enable-unsafe-webgpu', '--use-angle=swiftshader', '--use-vulkan=swiftshader', '--enable-features=Vulkan'] : [],
   });
   try {
-    const page = await browser.newPage({ viewport: { width: 1320, height: 830 } });
+    const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -50,9 +50,23 @@ function command(name, args) {
       await page.keyboard.up(key); await page.waitForTimeout(60);
     };
     const turn = async (key, count) => { await press('ArrowDown'); for (let i = 0; i < count; i++) await press(key); };
-    await capture('web-2x');
+    await capture('web-initial');
+    // Full chart freezes rendering and rejects a held rudder on return.
+    await press('ArrowUp'); await page.waitForTimeout(300);
+    await press('m');
+    const chart = await capture('web-chart'); await page.waitForTimeout(200);
+    assert.deepEqual(await canvas.screenshot(), chart, 'chart did not pause');
+    await page.keyboard.down('ArrowRight'); await press('m');
+    const latched = await capture('web-return-held'); await page.waitForTimeout(250);
+    assert.notDeepEqual(await canvas.screenshot(), latched, 'held rudder caused a hidden pause');
+    await page.keyboard.up('ArrowRight'); await page.waitForTimeout(250);
+    assert.notDeepEqual(await canvas.screenshot(), latched, 'neutral input did not resume');
+    await press('r');
+
     await press('ArrowUp'); await page.waitForTimeout(500); await press('Escape');
     const paused = await capture('web-pause'); await page.waitForTimeout(200);
+    await press('m'); await capture('web-chart-from-pause'); await press('m');
+    assert.deepEqual(await canvas.screenshot(), paused, 'chart discarded prior pause');
     assert.deepEqual(await canvas.screenshot(), paused, 'paused ship changed');
     await press('Escape'); await page.waitForTimeout(200);
     assert.notDeepEqual(await canvas.screenshot(), paused, 'resume did not move the ship');
@@ -65,9 +79,12 @@ function command(name, args) {
     await capture('web-arrival');
     // Inspect this capture for ARRIVEE PORT-PHARE. Human play feel is separate.
     await press('r');
-    await page.setViewportSize({ width: 680, height: 440 });
-    await canvas.evaluate(element => { element.style.width = '640px'; element.style.height = '360px'; });
+    await page.setViewportSize({ width: 1000, height: 640 });
+    await canvas.evaluate(element => { element.style.width = '960px'; element.style.height = '540px'; });
     await page.waitForTimeout(500); await capture('web-1x');
+    await page.setViewportSize({ width: 1980, height: 1200 });
+    await canvas.evaluate(element => { element.style.width = '1920px'; element.style.height = '1080px'; });
+    await page.waitForTimeout(500); await capture('web-2x');
     await page.setViewportSize({ width: 1030, height: 720 });
     await canvas.evaluate(element => { element.style.width = '970px'; element.style.height = '580px'; });
     await page.waitForTimeout(500); await capture('web-resize');

@@ -168,3 +168,261 @@ fn stable_controller_selection_and_direction_priorities() {
     assert_eq!(steering(false, false, false, false, 0.349), 0);
     assert_eq!(steering(false, false, false, false, 0.0), 0);
 }
+
+#[test]
+fn chart_freezes_full_state_and_discards_pending_and_held_commands_on_return() {
+    let mut app = App::default();
+    app.advance(
+        ms(19),
+        Controls {
+            raise: true,
+            ..Controls::default()
+        },
+    );
+    let before = app.sim.clone();
+    app.advance(
+        ms(100),
+        Controls {
+            chart: true,
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    assert!(app.chart_open);
+    for _ in 0..10 {
+        app.advance(
+            ms(100),
+            Controls {
+                rudder: 1,
+                raise: true,
+                ..Controls::default()
+            },
+        );
+    }
+    assert_eq!(app.sim, before);
+    app.advance(
+        ms(100),
+        Controls {
+            pause: true,
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    assert!(!app.chart_open);
+    for _ in 0..10 {
+        app.advance(
+            ms(100),
+            Controls {
+                rudder: 1,
+                raise: true,
+                ..Controls::default()
+            },
+        );
+    }
+    assert_eq!(app.sim.heading, before.heading);
+    assert!(!app.sim.sails);
+    let ticks = app.sim.ticks;
+    app.advance(ms(19), Controls::default()); // release rearms without time catch-up
+    assert_eq!(app.sim.ticks, ticks);
+    app.advance(ms(1), Controls::default());
+    assert_eq!(app.sim.ticks, ticks + 1);
+    app.advance(
+        ms(20),
+        Controls {
+            raise: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.sim.sails);
+}
+
+#[test]
+fn chart_preserves_prior_pause_reset_closes_it_and_simultaneous_toggles_are_safe() {
+    let mut app = App::default();
+    app.advance(
+        ms(20),
+        Controls {
+            pause: true,
+            ..Controls::default()
+        },
+    );
+    app.advance(
+        ms(100),
+        Controls {
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.paused && app.chart_open);
+    app.advance(
+        ms(100),
+        Controls {
+            chart: true,
+            pause: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.paused && !app.chart_open);
+    assert_eq!(app.sim.ticks, 0);
+    app.advance(
+        ms(20),
+        Controls {
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    app.advance(
+        ms(20),
+        Controls {
+            reset: true,
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    assert!(!app.chart_open && !app.paused);
+    assert_eq!(app.sim, Simulation::default());
+}
+
+#[test]
+fn wake_records_only_accepted_movement_expires_and_reset_clears_it() {
+    let mut app = App::default();
+    for _ in 0..100 {
+        app.advance(ms(20), Controls::default());
+    }
+    assert!(app.wake.is_empty());
+    app.advance(
+        ms(20),
+        Controls {
+            raise: true,
+            ..Controls::default()
+        },
+    );
+    for _ in 0..20 {
+        app.advance(ms(20), Controls::default());
+    }
+    assert!(!app.wake.is_empty());
+    app.advance(
+        ms(20),
+        Controls {
+            lower: true,
+            ..Controls::default()
+        },
+    );
+    for _ in 0..100 {
+        app.advance(ms(20), Controls::default());
+    }
+    assert!(app.wake.is_empty());
+    app.sim.position = [665 * 1024, 300 * 1024];
+    for _ in 0..100 {
+        app.advance(
+            ms(20),
+            Controls {
+                raise: true,
+                ..Controls::default()
+            },
+        );
+    }
+    assert!(app.sim.blocked && app.wake.is_empty());
+    app.advance(
+        ms(20),
+        Controls {
+            reset: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.wake.is_empty());
+}
+
+#[test]
+fn return_from_chart_keeps_sailing_without_applying_a_held_rudder() {
+    let mut app = App::default();
+    app.advance(
+        ms(20),
+        Controls {
+            raise: true,
+            ..Controls::default()
+        },
+    );
+    app.advance(
+        ms(20),
+        Controls {
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    app.advance(
+        ms(100),
+        Controls {
+            chart: true,
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    let before = app.sim.clone();
+    app.advance(
+        ms(100),
+        Controls {
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    assert_eq!(app.sim.ticks, before.ticks + 5);
+    assert!(app.sim.position[0] > before.position[0]);
+    assert_eq!(app.sim.heading, before.heading);
+}
+
+#[test]
+fn chart_return_waits_for_raw_neutral_even_when_opposites_cancel_or_sail_edge_is_past() {
+    let mut app = App::default();
+    app.advance(
+        ms(20),
+        Controls {
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    app.advance(
+        ms(20),
+        Controls {
+            chart: true,
+            ..Controls::default()
+        },
+    );
+    // Both Left+Right are held: their resolved rudder is zero, not raw neutral.
+    app.advance(
+        ms(20),
+        Controls {
+            nautical_held: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.awaiting_neutral());
+    app.advance(
+        ms(20),
+        Controls {
+            nautical_held: true,
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    assert_eq!(app.sim.heading, 0);
+    // Up was pressed in the chart and remains held; pressed() is now false.
+    app.advance(
+        ms(20),
+        Controls {
+            nautical_held: true,
+            ..Controls::default()
+        },
+    );
+    assert!(app.awaiting_neutral());
+    app.advance(ms(20), Controls::default());
+    assert!(!app.awaiting_neutral());
+    app.advance(
+        ms(20),
+        Controls {
+            rudder: 1,
+            ..Controls::default()
+        },
+    );
+    assert_eq!(app.sim.heading, 1);
+}

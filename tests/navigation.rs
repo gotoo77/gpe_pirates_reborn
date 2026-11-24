@@ -1,6 +1,6 @@
 use gpe_pirates_reborn::navigation::{
-    Command, HEADINGS, ISLANDS, PORTS, SCALE, Simulation, Wind, blocked_segment, camera, polar,
-    speed,
+    Command, HEADINGS, ISLANDS, PORTS, SCALE, SEA_HEIGHT, SHIP_MARGIN, Simulation, WIDTH, WORLD,
+    Wind, blocked_segment, camera, polar, speed,
 };
 
 fn sail(rudder: i8) -> Command {
@@ -222,15 +222,27 @@ fn ports_are_water_arrival_only_on_entry_and_can_leave_and_return() {
 
 #[test]
 fn camera_tracks_subunits_and_clamps_all_edges() {
-    assert_eq!(camera([320 * SCALE, 280 * SCALE]), [0, 124 * SCALE]);
+    assert_eq!(
+        camera([320 * SCALE, 280 * SCALE]),
+        [
+            -SHIP_MARGIN * SCALE,
+            (280 - i64::from(SEA_HEIGHT / 2)) * SCALE
+        ]
+    );
     assert_eq!(
         camera([800 * SCALE + 17, 500 * SCALE + 23]),
-        [480 * SCALE + 17, 344 * SCALE + 23]
+        [
+            (800 - i64::from(WIDTH / 2)) * SCALE + 17,
+            (500 - i64::from(SEA_HEIGHT / 2)) * SCALE + 23
+        ]
     );
-    assert_eq!(camera([7 * SCALE, 7 * SCALE]), [0, 0]);
+    assert_eq!(camera([7 * SCALE, 7 * SCALE]), [-SHIP_MARGIN * SCALE; 2]);
     assert_eq!(
         camera([1593 * SCALE, 993 * SCALE]),
-        [960 * SCALE, 688 * SCALE]
+        [
+            (WORLD[0] - i64::from(WIDTH) + SHIP_MARGIN) * SCALE,
+            (WORLD[1] - i64::from(SEA_HEIGHT) + SHIP_MARGIN) * SCALE
+        ]
     );
 }
 

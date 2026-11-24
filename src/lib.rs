@@ -16,11 +16,11 @@ impl Game for app::App {
 pub fn start() -> Result<(), EngineError> {
     run(
         EngineConfig {
-            title: "Pirates Reborn - P1".into(),
+            title: "Pirates Reborn - P1.1".into(),
             framebuffer_width: WIDTH,
             framebuffer_height: HEIGHT,
-            window_width: WIDTH * 2,
-            window_height: HEIGHT * 2,
+            window_width: WIDTH * 3 / 2,
+            window_height: HEIGHT * 3 / 2,
         },
         app::App::default(),
     )
