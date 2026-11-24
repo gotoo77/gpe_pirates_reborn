@@ -1,0 +1,28 @@
+[package]
+name = "gpe_pirates_reborn"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+publish = false
+default-run = "pirates-reborn"
+
+[[example]]
+name = "pirates_web"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "navigation_probe"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "pirates-reborn"
+path = "src/main.rs"
+
+[dependencies]
+gotoo-pixel-engine = { git = "https://github.com/gotoo77/gotoo-pixel-engine.git", rev = "8cbceda0c9b0cc55ee5deb7d5e173676ffc1d4f1" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.127"
+
+[profile.dev.package.gotoo-pixel-engine]
+opt-level = 2

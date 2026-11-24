@@ -1,0 +1,18 @@
+# Repeat count, rudder (-1/0/+1), raise, lower. One line expands to exact ticks.
+# Brise -> southeast below Dorsale -> east -> north into Phare. No teleport.
+1 1 0 0
+1 0 0 0
+1 1 0 0
+275 0 1 0
+1 -1 0 1
+1 0 0 0
+1 -1 0 0
+399 0 1 0
+1 -1 0 1
+1 0 0 0
+1 -1 0 0
+1 0 0 0
+1 -1 0 0
+1 0 0 0
+1 -1 0 0
+216 0 1 0

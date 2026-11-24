@@ -1,6 +1,6 @@
 # P1 — Maritime Navigation Sandbox
 
-**Statut : PROPOSÉ, à approuver ; aucune implémentation P1 autorisée par ce document.** Cadrage du 24 novembre 2026. Toutes les valeurs ci-dessous sont des règles originales de Pirates Reborn, ajustables seulement avec mise à jour de la spécification et de ses tests. Elles ne décrivent pas les formules de Pirates! CPC.
+**Statut : implémenté localement sur autorisation de la mission P1 du 24 novembre 2026.** Le [rapport P1](p1-validation.md) donne les validations obtenues et encore ouvertes. Cadrage P0 du 24 novembre 2026. Toutes les valeurs ci-dessous sont des règles originales de Pirates Reborn, ajustables seulement avec mise à jour de la spécification et de ses tests. Elles ne décrivent pas les formules de Pirates! CPC.
 
 ## Objectif et boucle jouable
 
@@ -127,6 +127,6 @@ Les tests automatisés doivent établir les règles et les cas limites ; les ess
 
 ## Choix et limites du cadrage
 
-**PROPOSÉ :** caps discrets et calcul entier, retenus ici pour rendre la règle petite et reproductible. Une rotation continue en flottants serait plus fluide mais demanderait de définir des tolérances entre plateformes ; une simulation nautique complète multiplierait les paramètres sans servir cette première boucle. Le choix reste à approuver avec P1, sans prétendre avoir été validé par le propriétaire.
+**RETENU EN P1 :** caps discrets et calcul entier, retenus ici pour rendre la règle petite et reproductible. Une rotation continue en flottants serait plus fluide mais demanderait de définir des tolérances entre plateformes ; une simulation nautique complète multiplierait les paramètres sans servir cette première boucle. La mission P1 autorise cette mise en œuvre ; le ressenti reste à valider par le propriétaire.
 
-Le test P1 décidera si la granularité de 16 caps convient au ressenti. Aucun système de navigation ultérieur, de voile réaliste ou de combat n'est réservé dans l'architecture. L'implémentation commence seulement après validation explicite, et s'arrête devant un manque de capacité non résolu.
+Le test P1 décidera si la granularité de 16 caps convient au ressenti. Aucun système de navigation ultérieur, de voile réaliste ou de combat n'est réservé dans l'architecture. L'implémentation a suivi le préflight des deux cibles et s'arrête à P1. Les capacités et limites constatées sont consignées dans le rapport P1.

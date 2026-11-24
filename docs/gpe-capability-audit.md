@@ -75,3 +75,9 @@ La CI GPE `.github/workflows/ci.yml` confirme des jobs Linux natif et Web. Linux
 | Gate Rust Pirates futur | Tests ciblés puis commande canonique du futur dépôt. Au minimum `cargo fmt --all -- --check`, `cargo check --locked`, `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`, `git diff --check`, plus build release et cible WASM. Sélectionner seulement les features supportées ; ne pas ajouter `--all-features` par défaut. |
 
 **Validation P0 :** inspection et cohérence documentaire ; script Bash testé séparément selon README. **Cargo fmt/check/test/build : NOT RUN. Clippy: NOT RUN**, absence de manifeste/code Rust dans Pirates, aucun fichier Cargo/Rust modifié. La cible WASM n'est pas installée localement ; aucun build, benchmark, test navigateur ou essai de manette du futur jeu n'a été exécuté. Ce sont les principales limites, pas des échecs de compilation observés.
+
+## Complément P1 — 24 novembre 2026
+
+La mission P1 a autorisé le pin exact audité et son implémentation. Le distant `refs/heads/main` confirme `8cbceda0c9b0cc55ee5deb7d5e173676ffc1d4f1` ; package 0.2.0, distinct du tag Git `v0.2.0`. Cargo.toml et Cargo.lock fixent ce SHA, sans checkout/path vers le moteur local. La cible WASM est installée et wasm-bindgen 0.2.127 est aligné avec la CLI.
+
+Le préflight minimal a réellement démarré le rendu natif et le paquet navigateur avant gameplay. Les règles sont ensuite implémentées dans le jeu, sans Core. `bash scripts/check.sh` est le gate canonique Pirates : fmt, check/test locked all-targets, Clippy strict natif et WASM, release native et packaging Web, validations Bash/Python/Node et diff-check. Tous passent lors de l'exécution P1 ; les réserves matérielles et humaines restent distinctes. Voir le [rapport P1](p1-validation.md) pour les commandes, captures, comparaison native/WASM et limites. Les constats historiques P0 ci-dessus restent datés P0.
