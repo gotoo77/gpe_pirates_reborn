@@ -567,7 +567,12 @@ fn hud(fb: &mut Framebuffer, app: &App) {
     } else {
         format!("DERNIER PORT : {}", PORTS[sim.last_port].name)
     };
-    if !app.paused && !app.chart_open && app.docked_port().is_some() {
+    if !app.paused
+        && !app.chart_open
+        && !app.awaiting_neutral()
+        && !sim.blocked
+        && app.docked_port().is_some()
+    {
         fb.fill_rect(10, y + 51, 618, 21, GOLD);
         fb.draw_text_scaled(18, y + 54, "ENTREE / SOUTH : OUVRIR LE MARCHE", 2, INK);
     } else {
@@ -780,8 +785,20 @@ fn market_card(fb: &mut Framebuffer, app: &App, port: usize, good: usize) {
     );
     fb.draw_text(112, y + 51, "ACHAT / PIECE", MUTED);
     fb.draw_text(250, y + 51, "VENTE / PIECE", MUTED);
-    fb.draw_text_scaled(112, y + 65, &price(e.marginal(port, good, Side::Buy)), 2, GOLD);
-    fb.draw_text_scaled(250, y + 65, &price(e.marginal(port, good, Side::Sell)), 2, MARKET_GREEN);
+    fb.draw_text_scaled(
+        112,
+        y + 65,
+        &price(e.marginal(port, good, Side::Buy)),
+        2,
+        GOLD,
+    );
+    fb.draw_text_scaled(
+        250,
+        y + 65,
+        &price(e.marginal(port, good, Side::Sell)),
+        2,
+        MARKET_GREEN,
+    );
 }
 
 fn market_cargo(fb: &mut Framebuffer, app: &App) {
@@ -790,14 +807,20 @@ fn market_cargo(fb: &mut Framebuffer, app: &App) {
     fb.draw_rect(20, 378, 356, 112, MUTED);
     fb.draw_text_scaled(34, 389, "MA CALE", 2, PAPER);
     fb.draw_text_scaled(242, 389, &format!("{}/{}", e.used(), CAPACITY), 2, GOLD);
-    let [sugar, wood, _tools] = e.cargo();
+    let [sugar, wood, _] = e.cargo();
     for cell in 0..CAPACITY {
         let x = 34 + i32::from(cell % 15) * 21;
         let y = 415 + i32::from(cell / 15) * 22;
         fb.fill_rect(x, y, 18, 18, INK);
         fb.draw_rect(x, y, 18, 18, MUTED);
         if cell < e.used() {
-            let good = if cell < sugar { 0 } else if cell < sugar + wood { 1 } else { 2 };
+            let good = if cell < sugar {
+                0
+            } else if cell < sugar + wood {
+                1
+            } else {
+                2
+            };
             fb.fill_rect(x + 2, y + 2, 14, 14, GOODS_COLOR[good]);
             fb.draw_line(x + 3, y + 3, x + 14, y + 14, WOOD);
             fb.draw_line(x + 14, y + 3, x + 3, y + 14, WOOD);
@@ -829,7 +852,12 @@ fn market_order(fb: &mut Framebuffer, app: &App) {
         fb.draw_text_scaled(x + 14, 130, name, 2, if active { INK } else { PAPER });
     }
     fb.draw_text(408, 165, "QUANTITE (GAUCHE / DROITE)", MUTED);
-    fb.draw_text(680, 165, if buying { "A PAYER" } else { "A RECEVOIR" }, MUTED);
+    fb.draw_text(
+        680,
+        165,
+        if buying { "A PAYER" } else { "A RECEVOIR" },
+        MUTED,
+    );
     fb.fill_rect(408, 180, 46, 34, MARKET_CARD);
     fb.fill_rect(565, 180, 46, 34, MARKET_CARD);
     fb.draw_rect(408, 180, 46, 34, MUTED);
@@ -838,14 +866,21 @@ fn market_order(fb: &mut Framebuffer, app: &App) {
     fb.draw_text_scaled(580, 188, "+", 3, PAPER);
     fb.draw_text_scaled(490, 185, &app.market_quantity.to_string(), 3, PAPER);
     let quote = app.market_quote();
-    if let Ok(q) = quote {
-        let after = if buying { e.cash() - q.total() } else { e.cash() + q.total() };
-        coin(fb, 682, 196);
-        fb.draw_text_scaled(700, 185, &q.total().to_string(), 3, GOLD);
-        fb.draw_text_scaled(408, 226, &format!("OR APRES : {after}"), 2, PAPER);
-    } else if let Err(error) = quote {
-        fb.draw_text_scaled(680, 185, "--", 3, MUTED);
-        fb.draw_text(408, 226, error.message(), PAPER);
+    match quote {
+        Ok(q) => {
+            let after = if buying {
+                e.cash() - q.total()
+            } else {
+                e.cash() + q.total()
+            };
+            coin(fb, 682, 196);
+            fb.draw_text_scaled(700, 185, &q.total().to_string(), 3, GOLD);
+            fb.draw_text_scaled(408, 226, &format!("OR APRES : {after}"), 2, PAPER);
+        }
+        Err(error) => {
+            fb.draw_text_scaled(680, 185, "--", 3, MUTED);
+            fb.draw_text(408, 226, error.message(), PAPER);
+        }
     }
     let ready = quote.is_ok();
     fb.fill_rect(408, 252, 516, 34, if ready { MARKET_GREEN } else { MARKET_CARD });
@@ -853,7 +888,13 @@ fn market_order(fb: &mut Framebuffer, app: &App) {
     fb.draw_text_scaled(
         422,
         261,
-        if !ready { "TRANSACTION INDISPONIBLE" } else if buying { "ENTREE / SOUTH : ACHETER" } else { "ENTREE / SOUTH : VENDRE" },
+        if !ready {
+            "TRANSACTION INDISPONIBLE"
+        } else if buying {
+            "ENTREE / SOUTH : ACHETER"
+        } else {
+            "ENTREE / SOUTH : VENDRE"
+        },
         2,
         if ready { INK } else { MUTED },
     );
@@ -871,14 +912,24 @@ fn market_logbook(fb: &mut Framebuffer, app: &App, port: usize) {
     fb.draw_rect(392, 336, 548, 154, MUTED);
     fb.draw_text_scaled(408, 346, "CARNET DES PORTS", 2, PAPER);
     fb.draw_text(408, 369, "PRIX OBSERVES - NON GARANTIS A L'ARRIVEE", MUTED);
-    for (row, (i, p)) in PORTS.iter().enumerate().filter(|(i, _)| *i != port).enumerate() {
+    for (row, (i, p)) in PORTS
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != port)
+        .enumerate()
+    {
         let y = 387 + row as i32 * 48;
         fb.fill_rect(408, y, 516, 43, PANEL);
         fb.draw_text_scaled(418, y + 4, p.name, 2, PAPER);
         if let Some(o) = e.observation(i) {
             let age = e.day() - o.day;
             fb.draw_text(742, y + 7, &format!("VU IL Y A {age} J"), MUTED);
-            fb.draw_text(418, y + 28, &format!("ACHAT VU : {}", price(o.buy[good])), GOLD);
+            fb.draw_text(
+                418,
+                y + 28,
+                &format!("ACHAT VU : {}", price(o.buy[good])),
+                GOLD,
+            );
             let interesting = matches!(
                 (e.marginal(port, good, Side::Buy), o.sell[good]),
                 (Some(buy), Some(sell)) if sell > buy
@@ -968,6 +1019,70 @@ pub fn scene(fb: &mut Framebuffer, app: &App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn market_icons_are_distinct_and_drawn_inside_their_tiles() {
+        let mut sprites = Vec::new();
+        for good in 0..GOODS.len() {
+            let mut fb = Framebuffer::new(72, 72);
+            fb.clear(INK);
+            good_icon(&mut fb, 4, 4, good, 4);
+            let mut colored = 0;
+            for y in 0..72 {
+                for x in 0..72 {
+                    if fb.pixel(x, y) != Some(INK) {
+                        assert!((4..68).contains(&x) && (4..68).contains(&y));
+                        colored += 1;
+                    }
+                }
+            }
+            assert!(colored > 500);
+            assert!(sprites.iter().all(|sprite| sprite != &fb));
+            sprites.push(fb);
+        }
+    }
+
+    #[test]
+    fn market_cargo_and_disabled_action_reflect_real_quotes() {
+        use crate::{
+            app::Controls,
+            navigation::{HEIGHT, WIDTH},
+        };
+        use std::time::Duration;
+
+        let mut app = App::default();
+        let mut fb = Framebuffer::new(WIDTH, HEIGHT);
+        let confirm = Controls {
+            market: true,
+            ..Controls::default()
+        };
+        app.advance(Duration::ZERO, confirm);
+        scene(&mut fb, &app);
+        assert_eq!(fb.pixel(36, 417), Some(INK));
+        assert_eq!(fb.pixel(370, 92), Some(SEA));
+        assert_eq!(fb.pixel(910, 254), Some(MARKET_GREEN));
+        app.advance(Duration::ZERO, confirm);
+        scene(&mut fb, &app);
+        assert_eq!(app.economy.cargo(), [1, 0, 0]);
+        assert_eq!(fb.pixel(36, 417), Some(GOODS_COLOR[0]));
+        assert_eq!(fb.pixel(57, 417), Some(INK));
+
+        app.advance(
+            Duration::ZERO,
+            Controls {
+                market_row: 1,
+                market_side: true,
+                ..Controls::default()
+            },
+        );
+        assert!(app.market_quote().is_err());
+        let before = app.economy.clone();
+        scene(&mut fb, &app);
+        assert_eq!(fb.pixel(370, 188), Some(SEA));
+        assert_eq!(fb.pixel(910, 254), Some(MARKET_CARD));
+        app.advance(Duration::ZERO, confirm);
+        assert_eq!(app.economy, before);
+    }
 
     #[test]
     fn cached_terrain_and_town_footprints_match_solid_geometry() {
