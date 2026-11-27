@@ -567,7 +567,12 @@ fn hud(fb: &mut Framebuffer, app: &App) {
     } else {
         format!("DERNIER PORT : {}", PORTS[sim.last_port].name)
     };
-    fb.draw_text(14, y + 55, &status, GOLD);
+    if !app.paused && !app.chart_open && app.docked_port().is_some() {
+        fb.fill_rect(10, y + 51, 618, 21, GOLD);
+        fb.draw_text_scaled(18, y + 54, "ENTREE / SOUTH : OUVRIR LE MARCHE", 2, INK);
+    } else {
+        fb.draw_text(14, y + 55, &status, GOLD);
+    }
     fb.draw_text(
         650,
         y + 55,
@@ -646,129 +651,272 @@ fn chart(fb: &mut Framebuffer, app: &App) {
     ship(fb, p[0], p[1], app.sim.heading, app.sim.sails);
 }
 
+// Market artwork and layout are presentation-only. Icons share the existing
+// maritime palette; no texture files, fonts or dependencies are required.
+const GOODS_COLOR: [Pixel; 3] = [
+    Pixel::rgb(234, 207, 153),
+    Pixel::rgb(185, 116, 61),
+    Pixel::rgb(138, 187, 206),
+];
+const MARKET_GREEN: Pixel = Pixel::rgb(95, 192, 151);
+const MARKET_CARD: Pixel = Pixel::rgb(30, 65, 71);
+const MARKET_SHADOW: Pixel = Pixel::rgb(8, 23, 31);
+
+fn coin(fb: &mut Framebuffer, x: i32, y: i32) {
+    fb.fill_circle(x + 2, y + 3, 10, MARKET_SHADOW);
+    fb.fill_circle(x, y, 10, WOOD);
+    fb.fill_circle(x, y - 1, 8, GOLD);
+    fb.fill_circle(x, y - 2, 5, Pixel::rgb(250, 211, 108));
+    fb.draw_line(x - 1, y - 6, x - 1, y + 3, GOLD);
+}
+
+// Original 16 x 16 pixel sprites, drawn with integer nearest-neighbour blocks.
+fn good_icon(fb: &mut Framebuffer, x: i32, y: i32, good: usize, scale: u32) {
+    const SUGAR: [&str; 16] = [
+        "................",
+        ".....dddddd.....",
+        "......dhhd......",
+        "......dhhd......",
+        ".....dddddd.....",
+        "....dhhhhhhd....",
+        "...dhhhhhhhhd...",
+        "..dhhhhhhhhhhd..",
+        "..dhhwwwhhhhhd..",
+        "..dhhwwwhhhhhd..",
+        "..dhhhhwwhhhhd..",
+        "..dhhhhhhhhhhd..",
+        "...dhhhhhhhhd...",
+        "....dddddddd....",
+        ".....ssssss.....",
+        "................",
+    ];
+    const LOGS: [&str; 16] = [
+        "................",
+        "................",
+        "....ddddddd.....",
+        "...dhhhhhhhdd...",
+        "..dhhhhhhhhwwd..",
+        "..dhhhhhhhwddwd.",
+        "..dhhhhhhhwdhwd.",
+        "...ddddddddwwd..",
+        "..ddddddddddd...",
+        ".dhhhhhhhhhhdd..",
+        ".dhhhhhhhhhhwwd.",
+        ".dhhhhhhhhhwddwd",
+        ".dhhhhhhhhhwdhwd",
+        "..ddddddddddwwd.",
+        "....sssssssss...",
+        "................",
+    ];
+    const TOOLS: [&str; 16] = [
+        "................",
+        "..dddddd........",
+        ".dwwwwwwd...d.d.",
+        ".dwhhhhhhd.dwdw.",
+        "..ddddddd..dwwd.",
+        "....dhd...dwwd..",
+        "....dhd..dwwd...",
+        "....dhd.dwwd....",
+        "....dhd.dwd.....",
+        "....dhddwd......",
+        "....dhdwd.......",
+        "....dhwd........",
+        "...dwwd.........",
+        "..dwwd..........",
+        "..dddssss.......",
+        "................",
+    ];
+    let sprite = match good {
+        0 => SUGAR,
+        1 => LOGS,
+        _ => TOOLS,
+    };
+    for (row, line) in sprite.iter().enumerate() {
+        for (col, ch) in line.bytes().enumerate() {
+            let color = match ch {
+                b'd' => WOOD,
+                b'h' => GOODS_COLOR[good],
+                b'w' => PAPER,
+                b's' => MARKET_SHADOW,
+                _ => continue,
+            };
+            fb.fill_rect(
+                x + col as i32 * scale as i32,
+                y + row as i32 * scale as i32,
+                scale,
+                scale,
+                color,
+            );
+        }
+    }
+}
+
 fn price(value: Option<u64>) -> String {
     value.map_or_else(|| "--".to_owned(), |v| v.to_string())
+}
+
+fn market_card(fb: &mut Framebuffer, app: &App, port: usize, good: usize) {
+    let e = &app.economy;
+    let y = 82 + good as i32 * 96;
+    let selected = app.market_good == good;
+    fb.fill_rect(24, y + 4, 356, 88, MARKET_SHADOW);
+    fb.fill_rect(20, y, 356, 88, if selected { SEA } else { MARKET_CARD });
+    fb.draw_rect(20, y, 356, 88, if selected { GOLD } else { MUTED });
+    fb.fill_rect(20, y, 5, 88, GOODS_COLOR[good]);
+    good_icon(fb, 35, y + 10, good, 4);
+    fb.draw_text_scaled(112, y + 9, GOODS[good], 2, PAPER);
+    if selected {
+        fb.draw_text(303, y + 11, "CHOISI", GOLD);
+    }
+    fb.draw_text(
+        112,
+        y + 34,
+        &format!(
+            "{} AU MARCHE    {} EN CALE",
+            e.stock(port, good).unwrap_or_default(),
+            e.cargo()[good]
+        ),
+        PAPER,
+    );
+    fb.draw_text(112, y + 51, "ACHAT / PIECE", MUTED);
+    fb.draw_text(250, y + 51, "VENTE / PIECE", MUTED);
+    fb.draw_text_scaled(112, y + 65, &price(e.marginal(port, good, Side::Buy)), 2, GOLD);
+    fb.draw_text_scaled(250, y + 65, &price(e.marginal(port, good, Side::Sell)), 2, MARKET_GREEN);
+}
+
+fn market_cargo(fb: &mut Framebuffer, app: &App) {
+    let e = &app.economy;
+    fb.fill_rect(20, 378, 356, 112, MARKET_CARD);
+    fb.draw_rect(20, 378, 356, 112, MUTED);
+    fb.draw_text_scaled(34, 389, "MA CALE", 2, PAPER);
+    fb.draw_text_scaled(242, 389, &format!("{}/{}", e.used(), CAPACITY), 2, GOLD);
+    let [sugar, wood, _tools] = e.cargo();
+    for cell in 0..CAPACITY {
+        let x = 34 + i32::from(cell % 15) * 21;
+        let y = 415 + i32::from(cell / 15) * 22;
+        fb.fill_rect(x, y, 18, 18, INK);
+        fb.draw_rect(x, y, 18, 18, MUTED);
+        if cell < e.used() {
+            let good = if cell < sugar { 0 } else if cell < sugar + wood { 1 } else { 2 };
+            fb.fill_rect(x + 2, y + 2, 14, 14, GOODS_COLOR[good]);
+            fb.draw_line(x + 3, y + 3, x + 14, y + 14, WOOD);
+            fb.draw_line(x + 14, y + 3, x + 3, y + 14, WOOD);
+        }
+    }
+    fb.draw_text(
+        34,
+        468,
+        &format!("{} PLACES LIBRES", CAPACITY - e.used()),
+        PAPER,
+    );
+    for (i, color) in GOODS_COLOR.iter().enumerate() {
+        fb.fill_rect(250 + i as i32 * 32, 466, 14, 10, *color);
+        fb.draw_text(266 + i as i32 * 32, 467, &e.cargo()[i].to_string(), PAPER);
+    }
+}
+
+fn market_order(fb: &mut Framebuffer, app: &App) {
+    let e = &app.economy;
+    let buying = app.market_side == Side::Buy;
+    fb.fill_rect(392, 82, 548, 244, PANEL);
+    fb.draw_rect(392, 82, 548, 244, GOLD);
+    fb.draw_text_scaled(408, 94, GOODS[app.market_good], 2, PAPER);
+    fb.draw_text(732, 99, "TAB / NORTH : CHANGER", MUTED);
+    for (x, name, active) in [(408, "ACHETER", buying), (672, "VENDRE", !buying)] {
+        let color = if active { GOLD } else { MARKET_CARD };
+        fb.fill_rect(x, 120, 250, 34, color);
+        fb.draw_rect(x, 120, 250, 34, GOLD);
+        fb.draw_text_scaled(x + 14, 130, name, 2, if active { INK } else { PAPER });
+    }
+    fb.draw_text(408, 165, "QUANTITE (GAUCHE / DROITE)", MUTED);
+    fb.draw_text(680, 165, if buying { "A PAYER" } else { "A RECEVOIR" }, MUTED);
+    fb.fill_rect(408, 180, 46, 34, MARKET_CARD);
+    fb.fill_rect(565, 180, 46, 34, MARKET_CARD);
+    fb.draw_rect(408, 180, 46, 34, MUTED);
+    fb.draw_rect(565, 180, 46, 34, MUTED);
+    fb.draw_text_scaled(423, 188, "-", 3, PAPER);
+    fb.draw_text_scaled(580, 188, "+", 3, PAPER);
+    fb.draw_text_scaled(490, 185, &app.market_quantity.to_string(), 3, PAPER);
+    let quote = app.market_quote();
+    if let Ok(q) = quote {
+        let after = if buying { e.cash() - q.total() } else { e.cash() + q.total() };
+        coin(fb, 682, 196);
+        fb.draw_text_scaled(700, 185, &q.total().to_string(), 3, GOLD);
+        fb.draw_text_scaled(408, 226, &format!("OR APRES : {after}"), 2, PAPER);
+    } else if let Err(error) = quote {
+        fb.draw_text_scaled(680, 185, "--", 3, MUTED);
+        fb.draw_text(408, 226, error.message(), PAPER);
+    }
+    let ready = quote.is_ok();
+    fb.fill_rect(408, 252, 516, 34, if ready { MARKET_GREEN } else { MARKET_CARD });
+    fb.draw_rect(408, 252, 516, 34, if ready { MARKET_GREEN } else { MUTED });
+    fb.draw_text_scaled(
+        422,
+        261,
+        if !ready { "TRANSACTION INDISPONIBLE" } else if buying { "ENTREE / SOUTH : ACHETER" } else { "ENTREE / SOUTH : VENDRE" },
+        2,
+        if ready { INK } else { MUTED },
+    );
+    if !app.market_feedback.is_empty() {
+        fb.draw_text(408, 303, &app.market_feedback, GOLD);
+    } else {
+        fb.draw_text(408, 303, "LE TOTAL TIENT COMPTE DE TOUT LE LOT", MUTED);
+    }
+}
+
+fn market_logbook(fb: &mut Framebuffer, app: &App, port: usize) {
+    let e = &app.economy;
+    let good = app.market_good;
+    fb.fill_rect(392, 336, 548, 154, MARKET_CARD);
+    fb.draw_rect(392, 336, 548, 154, MUTED);
+    fb.draw_text_scaled(408, 346, "CARNET DES PORTS", 2, PAPER);
+    fb.draw_text(408, 369, "PRIX OBSERVES - NON GARANTIS A L'ARRIVEE", MUTED);
+    for (row, (i, p)) in PORTS.iter().enumerate().filter(|(i, _)| *i != port).enumerate() {
+        let y = 387 + row as i32 * 48;
+        fb.fill_rect(408, y, 516, 43, PANEL);
+        fb.draw_text_scaled(418, y + 4, p.name, 2, PAPER);
+        if let Some(o) = e.observation(i) {
+            let age = e.day() - o.day;
+            fb.draw_text(742, y + 7, &format!("VU IL Y A {age} J"), MUTED);
+            fb.draw_text(418, y + 28, &format!("ACHAT VU : {}", price(o.buy[good])), GOLD);
+            let interesting = matches!(
+                (e.marginal(port, good, Side::Buy), o.sell[good]),
+                (Some(buy), Some(sell)) if sell > buy
+            );
+            fb.draw_text(
+                630,
+                y + 28,
+                &format!("VENTE VUE : {}", price(o.sell[good])),
+                if interesting { MARKET_GREEN } else { PAPER },
+            );
+            if interesting {
+                fb.draw_text(846, y + 28, "PISTE !", MARKET_GREEN);
+            }
+        } else {
+            fb.draw_text(418, y + 28, "A EXPLORER - PRIX INCONNUS", MUTED);
+        }
+    }
 }
 
 fn market(fb: &mut Framebuffer, app: &App, port: usize) {
     let e = &app.economy;
     fb.clear(INK);
-    fb.fill_rect(20, 20, 920, 500, PANEL);
-    fb.draw_rect(20, 20, 920, 500, GOLD);
-    fb.draw_text_scaled(36, 36, PORTS[port].name, 3, PAPER);
-    fb.draw_text_scaled(
-        36,
-        68,
-        &format!(
-            "OR {}     CALE {}/{}     JOUR {}",
-            e.cash(),
-            e.used(),
-            CAPACITY,
-            e.day()
-        ),
-        2,
-        GOLD,
-    );
-    for (x, name) in [
-        (52, "MARCHANDISE"),
-        (270, "STOCK"),
-        (390, "ACHAT/U"),
-        (545, "VENTE/U"),
-        (700, "EN CALE"),
-    ] {
-        fb.draw_text_scaled(x, 104, name, 2, MUTED);
+    fb.fill_rect(0, 0, 960, 70, WOOD);
+    fb.draw_line(0, 69, 959, 69, GOLD);
+    fb.draw_text_scaled(20, 12, "MARCHE", 3, PAPER);
+    fb.draw_text_scaled(20, 44, PORTS[port].name, 2, PAPER);
+    coin(fb, 608, 22);
+    fb.draw_text_scaled(626, 12, &format!("{} OR", e.cash()), 2, GOLD);
+    fb.draw_text(626, 47, &format!("JOUR {}", e.day()), PAPER);
+    for good in 0..GOODS.len() {
+        market_card(fb, app, port, good);
     }
-    let cargo = e.cargo();
-    for (i, name) in GOODS.iter().enumerate() {
-        let y = 132 + i as i32 * 36;
-        if i == app.market_good {
-            fb.fill_rect(36, y - 7, 888, 32, SEA);
-            fb.draw_rect(36, y - 7, 888, 32, GOLD);
-        }
-        fb.draw_text_scaled(52, y, name, 2, PAPER);
-        fb.draw_text_scaled(
-            270,
-            y,
-            &e.stock(port, i).unwrap_or_default().to_string(),
-            2,
-            PAPER,
-        );
-        fb.draw_text_scaled(390, y, &price(e.marginal(port, i, Side::Buy)), 2, PAPER);
-        fb.draw_text_scaled(545, y, &price(e.marginal(port, i, Side::Sell)), 2, PAPER);
-        fb.draw_text_scaled(700, y, &cargo[i].to_string(), 2, PAPER);
-    }
-    fb.draw_line(36, 239, 924, 239, GOLD);
-    fb.draw_text_scaled(
-        36,
-        251,
-        &format!(
-            "{} {} X {}",
-            if app.market_side == Side::Buy {
-                "ACHETER"
-            } else {
-                "VENDRE"
-            },
-            GOODS[app.market_good],
-            app.market_quantity
-        ),
-        2,
-        PAPER,
-    );
-    match app.market_quote() {
-        Ok(q) => {
-            let after = match app.market_side {
-                Side::Buy => e.cash() - q.total(),
-                Side::Sell => e.cash() + q.total(),
-            };
-            fb.draw_text_scaled(
-                36,
-                277,
-                &format!("TOTAL {} OR    APRES : {} OR", q.total(), after),
-                2,
-                GOLD,
-            );
-        }
-        Err(error) => {
-            fb.draw_text_scaled(36, 277, error.message(), 2, RED);
-        }
-    }
-    fb.draw_text(36, 305, &app.market_feedback, PAPER);
-    fb.draw_line(36, 323, 924, 323, GOLD);
-    fb.draw_text_scaled(36, 334, "DERNIERS PRIX OBSERVES (ACHAT/VENTE)", 2, MUTED);
-    for (x, name) in [(360, "SUCRE"), (520, "BOIS"), (680, "OUTILS")] {
-        fb.draw_text(x, 359, name, MUTED);
-    }
-    for (i, p) in PORTS.iter().enumerate() {
-        let y = 378 + i as i32 * 25;
-        fb.draw_text(36, y, p.name, PAPER);
-        if let Some(o) = e.observation(i) {
-            fb.draw_text(180, y, &format!("IL Y A {} J", e.day() - o.day), MUTED);
-            for (g, (buy, sell)) in o.buy.into_iter().zip(o.sell).enumerate() {
-                fb.draw_text_scaled(
-                    360 + g as i32 * 160,
-                    y - 3,
-                    &format!("{}/{}", price(buy), price(sell)),
-                    2,
-                    PAPER,
-                );
-            }
-        } else {
-            fb.draw_text(180, y, "NON VISITE", MUTED);
-        }
-    }
-    fb.draw_line(36, 451, 924, 451, GOLD);
-    fb.draw_text(
-        36,
-        466,
-        "HAUT/BAS : BIEN  |  GAUCHE/DROITE : QUANTITE  |  TAB / NORTH : ACHAT/VENTE",
-        PAPER,
-    );
-    fb.draw_text(
-        36,
-        487,
-        "ENTREE / SOUTH : CONFIRMER  |  ECHAP / START / EAST : FERMER  |  R / SELECT : RESET",
-        PAPER,
-    );
+    market_cargo(fb, app);
+    market_order(fb, app);
+    market_logbook(fb, app, port);
+    fb.draw_text_scaled(20, 506, "HAUT/BAS : CHOISIR", 2, PAPER);
+    fb.draw_text_scaled(392, 506, "ECHAP / EAST / START : QUITTER", 2, PAPER);
+    fb.draw_text(20, 528, "R / SELECT : RECOMMENCER", MUTED);
 }
 
 pub fn scene(fb: &mut Framebuffer, app: &App) {
