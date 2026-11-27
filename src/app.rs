@@ -170,7 +170,9 @@ impl App {
             chart: pressed(Key::M, GamepadButton::West),
             market: pressed(Key::Enter, GamepadButton::South),
             market_close: self.gamepad.is_some_and(|id| {
-                input.gamepad_button(GamepadId::new(id), GamepadButton::East).pressed()
+                input
+                    .gamepad_button(GamepadId::new(id), GamepadButton::East)
+                    .pressed()
             }),
             market_side: pressed(Key::Tab, GamepadButton::North),
             market_row: i8::from(pressed(Key::Down, GamepadButton::DPadDown))
@@ -229,7 +231,8 @@ impl App {
         if self.paused {
             return;
         }
-        if controls.market && !controls.market_close
+        if controls.market
+            && !controls.market_close
             && let Some(port) = self.docked_port()
         {
             self.economy.observe(port);
