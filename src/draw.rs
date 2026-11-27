@@ -559,7 +559,11 @@ fn hud(fb: &mut Framebuffer, app: &App) {
     } else if sim.blocked {
         "TERRE - TOURNER POUR REPARTIR".to_owned()
     } else if let Some(i) = app.docked_port() {
-        format!("{} - ENTREE / SOUTH : MARCHE", PORTS[i].name)
+        if sim.arrival == Some(i) {
+            format!("ARRIVEE {} - ENTREE / SOUTH : MARCHE", PORTS[i].name)
+        } else {
+            format!("{} - ENTREE / SOUTH : MARCHE", PORTS[i].name)
+        }
     } else {
         format!("DERNIER PORT : {}", PORTS[sim.last_port].name)
     };
@@ -739,11 +743,11 @@ fn market(fb: &mut Framebuffer, app: &App, port: usize) {
         fb.draw_text(36, y, p.name, PAPER);
         if let Some(o) = e.observation(i) {
             fb.draw_text(180, y, &format!("IL Y A {} J", e.day() - o.day), MUTED);
-            for g in 0..GOODS.len() {
+            for (g, (buy, sell)) in o.buy.into_iter().zip(o.sell).enumerate() {
                 fb.draw_text_scaled(
                     360 + g as i32 * 160,
                     y - 3,
-                    &format!("{}/{}", price(o.buy[g]), price(o.sell[g])),
+                    &format!("{}/{}", price(buy), price(sell)),
                     2,
                     PAPER,
                 );
