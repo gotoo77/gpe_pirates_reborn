@@ -280,3 +280,39 @@ fn three_port_trade_replays_existing_navigation_route() {
     assert!(app.economy.cash() > START_CASH);
     assert!(app.economy.observation(2).is_some());
 }
+
+#[test]
+fn economic_clock_is_independent_of_frame_grouping() {
+    let mut a = App::default();
+    let mut b = App::default();
+    a.sim.position = [400 * SCALE, 280 * SCALE];
+    a.sim.ports_inside = [false; 3];
+    b.sim = a.sim.clone();
+    for _ in 0..123 {
+        a.advance(Duration::from_millis(100), Controls::default());
+        for _ in 0..5 {
+            b.advance(Duration::from_millis(20), Controls::default());
+        }
+    }
+    assert_eq!(a.sim, b.sim);
+    assert_eq!(a.economy, b.economy);
+    assert_eq!(a.economy.day(), 3);
+    assert_eq!(a.economy.sea_ticks(), 15);
+}
+
+#[test]
+fn market_rendering_is_read_only() {
+    use gotoo_pixel_engine::Framebuffer;
+    use gpe_pirates_reborn::{
+        draw,
+        navigation::{HEIGHT, WIDTH},
+    };
+
+    let mut app = App::default();
+    open(&mut app);
+    let before = app.economy.clone();
+    let mut fb = Framebuffer::new(WIDTH, HEIGHT);
+    draw::scene(&mut fb, &app);
+    draw::scene(&mut fb, &app);
+    assert_eq!(app.economy, before);
+}
