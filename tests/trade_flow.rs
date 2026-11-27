@@ -1,6 +1,6 @@
 use gpe_pirates_reborn::{
     app::{App, Controls},
-    economy::{Economy, Side, START_CASH, TICKS_PER_DAY},
+    economy::{Economy, START_CASH, Side, TICKS_PER_DAY},
     navigation::{SCALE, Simulation},
 };
 use std::time::Duration;
@@ -255,10 +255,7 @@ fn three_port_trade_replays_existing_navigation_route() {
     assert_eq!(app.docked_port(), Some(1));
     assert!(app.economy.day() > 0);
     assert_eq!(app.economy.observation(0), Some(brise));
-    assert_eq!(
-        app.economy.observation(1).unwrap().day,
-        app.economy.day()
-    );
+    assert_eq!(app.economy.observation(1).unwrap().day, app.economy.day());
     trade(&mut app, 0, Side::Sell, 8);
     assert!(app.economy.cash() > START_CASH);
     trade(&mut app, 1, Side::Buy, 5);
