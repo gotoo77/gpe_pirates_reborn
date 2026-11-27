@@ -17,7 +17,7 @@ impl Game for app::App {
 pub fn start() -> Result<(), EngineError> {
     run(
         EngineConfig {
-            title: "Pirates Reborn - P2-X1".into(),
+            title: "Pirates Reborn - P2-X2".into(),
             framebuffer_width: WIDTH,
             framebuffer_height: HEIGHT,
             window_width: WIDTH * 3 / 2,
