@@ -773,14 +773,15 @@ fn market_card(fb: &mut Framebuffer, app: &App, port: usize, good: usize) {
     if selected {
         fb.draw_text(303, y + 11, "CHOISI", GOLD);
     }
-    fb.draw_text(
+    fb.draw_text_scaled(
         112,
-        y + 34,
+        y + 30,
         &format!(
-            "{} AU MARCHE    {} EN CALE",
+            "{} DISPO   {} CALE",
             e.stock(port, good).unwrap_or_default(),
             e.cargo()[good]
         ),
+        2,
         PAPER,
     );
     fb.draw_text(112, y + 51, "ACHAT / PIECE", MUTED);
@@ -910,7 +911,7 @@ fn market_logbook(fb: &mut Framebuffer, app: &App, port: usize) {
     let good = app.market_good;
     fb.fill_rect(392, 336, 548, 154, MARKET_CARD);
     fb.draw_rect(392, 336, 548, 154, MUTED);
-    fb.draw_text_scaled(408, 346, "CARNET DES PORTS", 2, PAPER);
+    fb.draw_text_scaled(408, 346, &format!("CARNET : {}", GOODS[good]), 2, PAPER);
     fb.draw_text(408, 369, "PRIX OBSERVES - NON GARANTIS A L'ARRIVEE", MUTED);
     for (row, (i, p)) in PORTS
         .iter()
@@ -924,20 +925,22 @@ fn market_logbook(fb: &mut Framebuffer, app: &App, port: usize) {
         if let Some(o) = e.observation(i) {
             let age = e.day() - o.day;
             fb.draw_text(742, y + 7, &format!("VU IL Y A {age} J"), MUTED);
-            fb.draw_text(
+            fb.draw_text_scaled(
                 418,
-                y + 28,
-                &format!("ACHAT VU : {}", price(o.buy[good])),
+                y + 24,
+                &format!("ACHAT {}", price(o.buy[good])),
+                2,
                 GOLD,
             );
             let interesting = matches!(
                 (e.marginal(port, good, Side::Buy), o.sell[good]),
                 (Some(buy), Some(sell)) if sell > buy
             );
-            fb.draw_text(
+            fb.draw_text_scaled(
                 630,
-                y + 28,
-                &format!("VENTE VUE : {}", price(o.sell[good])),
+                y + 24,
+                &format!("VENTE {}", price(o.sell[good])),
+                2,
                 if interesting { MARKET_GREEN } else { PAPER },
             );
             if interesting {
