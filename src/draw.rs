@@ -1,6 +1,7 @@
 //! Original, code-drawn maritime pixel art. No presentation value enters physics.
 use crate::{
     app::App,
+    economy::{CAPACITY, GOODS, Side},
     navigation::{
         HEADING_NAMES, HEADINGS, HUD_HEIGHT, ISLANDS, PORTS, SCALE, WORLD, camera_for,
         land_contains,
@@ -557,12 +558,24 @@ fn hud(fb: &mut Framebuffer, app: &App) {
         "RELACHER BARRE / VOILES POUR COMMANDER".to_owned()
     } else if sim.blocked {
         "TERRE - TOURNER POUR REPARTIR".to_owned()
-    } else if let Some(i) = sim.arrival {
-        format!("ARRIVEE {}", PORTS[i].name)
+    } else if let Some(i) = app.docked_port() {
+        format!("{} - ENTREE / SOUTH : MARCHE", PORTS[i].name)
     } else {
         format!("DERNIER PORT : {}", PORTS[sim.last_port].name)
     };
     fb.draw_text(14, y + 55, &status, GOLD);
+    fb.draw_text(
+        650,
+        y + 55,
+        &format!(
+            "OR {} | CALE {}/{} | J{}",
+            app.economy.cash(),
+            app.economy.used(),
+            CAPACITY,
+            app.economy.day()
+        ),
+        GOLD,
+    );
     fb.draw_text(
         14,
         y + 73,
@@ -629,7 +642,136 @@ fn chart(fb: &mut Framebuffer, app: &App) {
     ship(fb, p[0], p[1], app.sim.heading, app.sim.sails);
 }
 
+fn price(value: Option<u64>) -> String {
+    value.map_or_else(|| "--".to_owned(), |v| v.to_string())
+}
+
+fn market(fb: &mut Framebuffer, app: &App, port: usize) {
+    let e = &app.economy;
+    fb.clear(INK);
+    fb.fill_rect(20, 20, 920, 500, PANEL);
+    fb.draw_rect(20, 20, 920, 500, GOLD);
+    fb.draw_text_scaled(36, 36, PORTS[port].name, 3, PAPER);
+    fb.draw_text_scaled(
+        36,
+        68,
+        &format!(
+            "OR {}     CALE {}/{}     JOUR {}",
+            e.cash(),
+            e.used(),
+            CAPACITY,
+            e.day()
+        ),
+        2,
+        GOLD,
+    );
+    for (x, name) in [
+        (52, "MARCHANDISE"),
+        (270, "STOCK"),
+        (390, "ACHAT/U"),
+        (545, "VENTE/U"),
+        (700, "EN CALE"),
+    ] {
+        fb.draw_text_scaled(x, 104, name, 2, MUTED);
+    }
+    let cargo = e.cargo();
+    for (i, name) in GOODS.iter().enumerate() {
+        let y = 132 + i as i32 * 36;
+        if i == app.market_good {
+            fb.fill_rect(36, y - 7, 888, 32, SEA);
+            fb.draw_rect(36, y - 7, 888, 32, GOLD);
+        }
+        fb.draw_text_scaled(52, y, name, 2, PAPER);
+        fb.draw_text_scaled(
+            270,
+            y,
+            &e.stock(port, i).unwrap_or_default().to_string(),
+            2,
+            PAPER,
+        );
+        fb.draw_text_scaled(390, y, &price(e.marginal(port, i, Side::Buy)), 2, PAPER);
+        fb.draw_text_scaled(545, y, &price(e.marginal(port, i, Side::Sell)), 2, PAPER);
+        fb.draw_text_scaled(700, y, &cargo[i].to_string(), 2, PAPER);
+    }
+    fb.draw_line(36, 239, 924, 239, GOLD);
+    fb.draw_text_scaled(
+        36,
+        251,
+        &format!(
+            "{} {} X {}",
+            if app.market_side == Side::Buy {
+                "ACHETER"
+            } else {
+                "VENDRE"
+            },
+            GOODS[app.market_good],
+            app.market_quantity
+        ),
+        2,
+        PAPER,
+    );
+    match app.market_quote() {
+        Ok(q) => {
+            let after = match app.market_side {
+                Side::Buy => e.cash() - q.total(),
+                Side::Sell => e.cash() + q.total(),
+            };
+            fb.draw_text_scaled(
+                36,
+                277,
+                &format!("TOTAL {} OR    APRES : {} OR", q.total(), after),
+                2,
+                GOLD,
+            );
+        }
+        Err(error) => {
+            fb.draw_text_scaled(36, 277, error.message(), 2, RED);
+        }
+    }
+    fb.draw_text(36, 305, &app.market_feedback, PAPER);
+    fb.draw_line(36, 323, 924, 323, GOLD);
+    fb.draw_text_scaled(36, 334, "DERNIERS PRIX OBSERVES (ACHAT/VENTE)", 2, MUTED);
+    for (x, name) in [(360, "SUCRE"), (520, "BOIS"), (680, "OUTILS")] {
+        fb.draw_text(x, 359, name, MUTED);
+    }
+    for (i, p) in PORTS.iter().enumerate() {
+        let y = 378 + i as i32 * 25;
+        fb.draw_text(36, y, p.name, PAPER);
+        if let Some(o) = e.observation(i) {
+            fb.draw_text(180, y, &format!("IL Y A {} J", e.day() - o.day), MUTED);
+            for g in 0..GOODS.len() {
+                fb.draw_text_scaled(
+                    360 + g as i32 * 160,
+                    y - 3,
+                    &format!("{}/{}", price(o.buy[g]), price(o.sell[g])),
+                    2,
+                    PAPER,
+                );
+            }
+        } else {
+            fb.draw_text(180, y, "NON VISITE", MUTED);
+        }
+    }
+    fb.draw_line(36, 451, 924, 451, GOLD);
+    fb.draw_text(
+        36,
+        466,
+        "HAUT/BAS : BIEN  |  GAUCHE/DROITE : QUANTITE  |  TAB / NORTH : ACHAT/VENTE",
+        PAPER,
+    );
+    fb.draw_text(
+        36,
+        487,
+        "ENTREE / SOUTH : CONFIRMER  |  ECHAP / START / EAST : FERMER  |  R / SELECT : RESET",
+        PAPER,
+    );
+}
+
 pub fn scene(fb: &mut Framebuffer, app: &App) {
+    if let Some(port) = app.market_port {
+        market(fb, app, port);
+        return;
+    }
     if app.chart_open {
         chart(fb, app);
         hud(fb, app);
