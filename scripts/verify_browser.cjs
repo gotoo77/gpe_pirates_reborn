@@ -42,6 +42,8 @@ function command(name, args) {
       const probe = await import('/probe/probe.js'); await probe.default(); return probe.reference_state();
     });
     assert.equal(actual, expected, 'native and WASM full states differ');
+    const actualTrade = await page.evaluate(async () => (await import('/probe/probe.js')).trade_state());
+    assert.equal(actualTrade, expectedTrade, 'native and WASM economy states differ');
     const canvas = page.locator('canvas');
     await canvas.click();
     const capture = name => canvas.screenshot({ path: path.join(output, name + '.png') });
@@ -50,7 +52,22 @@ function command(name, args) {
       await page.keyboard.up(key); await page.waitForTimeout(60);
     };
     const turn = async (key, count) => { await press('ArrowDown'); for (let i = 0; i < count; i++) await press(key); };
-    await capture('web-initial');
+    const initial = await capture('web-initial');
+    await press('Enter');
+    const market = await capture('web-market');
+    assert.notDeepEqual(market, initial, 'market did not open');
+    await press('Enter');
+    const purchased = await capture('web-market-buy');
+    assert.notDeepEqual(purchased, market, 'buy did not change market');
+    await page.waitForTimeout(200);
+    assert.deepEqual(await canvas.screenshot(), purchased, 'market did not freeze');
+    await press('Tab');
+    const sellQuote = await capture('web-market-sell-quote');
+    assert.notDeepEqual(sellQuote, purchased, 'sale selection did not change');
+    await press('Enter');
+    assert.notDeepEqual(await capture('web-market-sell'), sellQuote, 'sell did not change market');
+    await press('Escape');
+    await press('r');
     // Full chart freezes rendering and rejects a held rudder on return.
     await press('ArrowUp'); await page.waitForTimeout(300);
     await press('m');
@@ -95,6 +112,6 @@ function command(name, args) {
     const times = await page.evaluate(() => globalThis.__frameTimes);
     const frameMs = (times.at(-1) - times[0]) / (times.length - 1);
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ browser: browser.version(), gpu, nativeWasmState: actual, frames: times.length, meanFrameMs: frameMs, screenshots: output, errors }, null, 2));
+    console.log(JSON.stringify({ browser: browser.version(), gpu, nativeWasmState: actual, nativeWasmTradeState: actualTrade, frames: times.length, meanFrameMs: frameMs, screenshots: output, errors }, null, 2));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
