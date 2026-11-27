@@ -884,7 +884,13 @@ fn market_order(fb: &mut Framebuffer, app: &App) {
         }
     }
     let ready = quote.is_ok();
-    fb.fill_rect(408, 252, 516, 34, if ready { MARKET_GREEN } else { MARKET_CARD });
+    fb.fill_rect(
+        408,
+        252,
+        516,
+        34,
+        if ready { MARKET_GREEN } else { MARKET_CARD },
+    );
     fb.draw_rect(408, 252, 516, 34, if ready { MARKET_GREEN } else { MUTED });
     fb.draw_text_scaled(
         422,
