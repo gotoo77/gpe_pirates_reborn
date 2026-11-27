@@ -302,8 +302,10 @@ mod tests {
 
     #[test]
     fn cash_capacity_and_port_limit_are_enforced() {
-        let mut e = Economy::default();
-        e.cash = 0;
+        let mut e = Economy {
+            cash: 0,
+            ..Economy::default()
+        };
         assert_eq!(e.quote(0, 0, Side::Buy, 1), Err(TradeError::Cash));
         e.cash = 300;
         e.cargo = [30, 0, 0];
