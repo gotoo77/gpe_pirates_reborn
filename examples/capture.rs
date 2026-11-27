@@ -64,6 +64,35 @@ fn main() -> io::Result<()> {
         draw::ship(&mut atlas, 16 + i32::from(heading) * 32, 74, heading, false);
     }
     save(dir, "p11-ship-16-headings", &atlas)?;
+    let mut market = App::default();
+    let confirm = Controls {
+        market: true,
+        ..Controls::default()
+    };
+    market.advance(Duration::ZERO, confirm);
+    draw::scene(&mut fb, &market);
+    save(dir, "p2x2-market-empty", &fb)?;
+    for _ in 0..7 {
+        market.advance(
+            Duration::ZERO,
+            Controls {
+                market_quantity: 1,
+                ..Controls::default()
+            },
+        );
+    }
+    market.advance(Duration::ZERO, confirm);
+    draw::scene(&mut fb, &market);
+    save(dir, "p2x2-market-cargo", &fb)?;
+    market.advance(
+        Duration::ZERO,
+        Controls {
+            market_side: true,
+            ..Controls::default()
+        },
+    );
+    draw::scene(&mut fb, &market);
+    save(dir, "p2x2-market-sell", &fb)?;
     println!("CPU captures: {}", dir.display());
     Ok(())
 }
