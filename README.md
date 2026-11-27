@@ -6,6 +6,10 @@ Carte, graphismes, textes et données seront originaux. Aucun code ou asset prop
 
 ## Statut
 
+**P2-X2 - Market UX, candidat expérimental non validé**, sur `exp/p2-x2-market-ux`, dérivé de P2-X1 `f69d16d699b36ccd91b7c2a74330fc22a1d0eb54`. Le marché présente trois cartes illustrées (sac de sucre, rondins, outils), une cale de 30 cases, un panneau achat/vente avec total exact et un carnet limité à la marchandise choisie. Les prix des autres ports restent des observations datées ; une piste signalée compare seulement deux prix unitaires, jamais un bénéfice garanti. Les commandes clavier/manette et les règles économiques sont inchangées. L'action d'ouverture du marché est mise en évidence dans le HUD. Pas de souris ni de son ajouté dans cette passe.
+
+Qualification : gate canonique `bash scripts/check.sh`, démarrage natif et navigateur WebGPU, puis playtest de lisibilité. Captures CPU reproductibles : `cargo run --locked --release --example capture` (fichiers `p2x2-market-*.ppm`). Aucun merge ; P2.0 reste hors périmètre.
+
 **P2-X1 - First Playable Trade, candidat expérimental non validé**, sur `exp/p2-x1-playable-trade`, dérivé de P1.1 `cd29600456c1c78fd27c09243572c0fb09de0889`. Le gate complet, les démarrages natif/WebGPU et le playtest doivent encore être exécutés. Aucun merge dans main, aucune validation P2.0.
 
 **P1.1 — Maritime Visual & Gameplay Feel implémenté localement**, sur `feat/p1-maritime-navigation`, après P1 (`84e869e`). Prototype : quitter Port-Brise, contourner Grande Dorsale avec le vent, atteindre Port-Phare ou Port-Anse, puis repartir. Ce statut P1.1 est historique : il ne comportait aucun commerce, combat ou contenu P2.
