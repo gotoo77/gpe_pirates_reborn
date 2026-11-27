@@ -6,11 +6,13 @@ Carte, graphismes, textes et données seront originaux. Aucun code ou asset prop
 
 ## Statut
 
-**P1.1 — Maritime Visual & Gameplay Feel implémenté localement**, sur `feat/p1-maritime-navigation`, après P1 (`84e869e`). Prototype : quitter Port-Brise, contourner Grande Dorsale avec le vent, atteindre Port-Phare ou Port-Anse, puis repartir. Aucun commerce, combat ou contenu P2.
+**P2-X1 - First Playable Trade, candidat expérimental non validé**, sur `exp/p2-x1-playable-trade`, dérivé de P1.1 `cd29600456c1c78fd27c09243572c0fb09de0889`. Le gate complet, les démarrages natif/WebGPU et le playtest doivent encore être exécutés. Aucun merge dans main, aucune validation P2.0.
+
+**P1.1 — Maritime Visual & Gameplay Feel implémenté localement**, sur `feat/p1-maritime-navigation`, après P1 (`84e869e`). Prototype : quitter Port-Brise, contourner Grande Dorsale avec le vent, atteindre Port-Phare ou Port-Anse, puis repartir. Ce statut P1.1 est historique : il ne comportait aucun commerce, combat ou contenu P2.
 
 La dépendance GPE est verrouillée au commit **`8cbceda0c9b0cc55ee5deb7d5e173676ffc1d4f1`**, package 0.2.0. Le tag Git `v0.2.0` désigne un autre commit et n'est pas utilisé. Aucun moteur local ou autre jeu n'est modifié.
 
-Le [rapport P1.1](docs/p11-validation.md) présente les captures, les performances et les validations ; le [rapport P1](docs/p1-validation.md) conserve la référence historique. Aucun push ou merge n'est effectué.
+Le [rapport P1.1](docs/p11-validation.md) présente les captures, les performances et les validations ; le [rapport P1](docs/p1-validation.md) conserve la référence historique. Cette validation historique est distincte de la branche expérimentale P2-X1.
 
 ## Documents
 
@@ -41,6 +43,23 @@ Le binaire est aussi lançable directement : `./target/release/pirates-reborn`. 
 Fermer la fenêtre quitte le jeu. Hisser les voiles démarre ; entrer dans le disque d'un port depuis l'extérieur baisse les voiles. Le vent souffle **vers l'est**, force 2 : un cap SE ou NE atteint 72 unités/s ; travers 57,6 ; face au vent 10,8. Face à la terre, tout le déplacement du tick est refusé : tourner puis repartir. Route possible : depuis Brise, cap SE jusqu'au sud de Dorsale, puis E et N vers Phare.
 
 La manette connectée d'identifiant minimal est choisie et conservée jusqu'à déconnexion. Le clavier est prioritaire, puis le D-pad, puis le stick. Le navigateur peut demander une première pression de bouton pour exposer une manette. **Le matériel réel reste à tester.** Il n'y a pas de pause automatique promise à la perte de focus : utiliser Échap/Start.
+
+## P2-X1 : commerce expérimental
+
+Au départ de Port-Brise, voiles baissées, **Entrée / South** ouvre le marché. Trois marchandises : sucre, bois, outils. 300 pièces, cale totale de 30 unités ; 40 unités au maximum par bien et par marché. Prix marginaux d'achat/vente et montant exact du lot sont séparés. Les stocks évoluent d'une unité par jour vers leur équilibre M1 ; un jour correspond à 200 ticks de mer (4 secondes de simulation), sans rattrapage des menus. Le temps ne passe pas au port. Les observations sont rafraîchies à la visite et après transaction ; les ports non visités ne révèlent aucun prix. Pas de sauvegarde, d'IA commerciale ni de recherche de routes.
+
+| Action au marché | Clavier | Manette |
+| --- | --- | --- |
+| Ouvrir / confirmer | Entrée | South |
+| Sélectionner le bien | Haut / bas | D-pad haut / bas |
+| Quantité | Gauche / droite | D-pad gauche / droite |
+| Achat / vente | Tab | North |
+| Fermer | Échap | East / Start |
+| Réinitialiser toute la partie | R | Select |
+
+Fermer le marché, relâcher les commandes nautiques puis hisser les voiles comme en P1.1. Transporter une cargaison entre Brise, Phare et Anse, puis comparer le capital et les cotations. Une revente immédiate au même port entraîne une perte : le marché n'est pas un générateur de monnaie. La trésorerie ne valorise pas le cargo invendu. La vitesse du jour économique est une hypothèse de gameplay.
+
+Qualification exigée : `bash scripts/check.sh` inchangé, puis démarrage natif et navigateur WebGPU. Le test optionnel `node scripts/verify_browser.cjs` (Playwright et serveur dist sur port 8765, voir script) couvre aussi le marché et compare l'état économique natif/WASM. Les résultats de ces essais ne sont pas encore disponibles. Le laboratoire Q3b reste gelé ; V4 et la campagne économique complète sont différés. A6-C HOLD, P2.0 NO-GO définitif ; P2-X1 ne prétend pas valider les hypothèses économiques.
 
 ## Construire et servir le Web
 
