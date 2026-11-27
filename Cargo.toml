@@ -18,8 +18,29 @@ crate-type = ["cdylib"]
 name = "pirates-reborn"
 path = "src/main.rs"
 
+[features]
+ui-spike = ["gotoo-pixel-engine/outline-fonts"]
+
+[[example]]
+name = "ui_capacity_spike"
+required-features = ["ui-spike"]
+
+[[example]]
+name = "ui_capacity_spike_web"
+crate-type = ["cdylib"]
+required-features = ["ui-spike"]
+
+[[example]]
+name = "ui_capacity_spike_b"
+required-features = ["ui-spike"]
+
+[[example]]
+name = "ui_capacity_spike_b_web"
+crate-type = ["cdylib"]
+required-features = ["ui-spike"]
+
 [dependencies]
-gotoo-pixel-engine = { git = "https://github.com/gotoo77/gotoo-pixel-engine.git", rev = "8cbceda0c9b0cc55ee5deb7d5e173676ffc1d4f1" }
+gotoo-pixel-engine = { git = "https://github.com/gotoo77/gotoo-pixel-engine.git", rev = "9ea92c068795f4e924b4cb9dd50cbb9ff13d3ef5" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "=0.2.127"
